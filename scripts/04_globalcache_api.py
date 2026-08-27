@@ -1,68 +1,134 @@
 """
-Step 4: Query GlobalCaché Control Tower API for IR codes not covered by Steps 1-3.
+Step 4: Query GlobalCaché IR Database API for IR codes not covered by Steps 1-3.
 
-GlobalCaché Control Tower API:
-  - Base: https://irdb.globalcache.com/api
-  - Free tier: 10,000 requests/month
-  - Returns Pronto Hex format
+API Base: https://irdb.globalcache.com:8081/
+Auth:     POST /api/account/login → apikey (session-scoped, not durable)
+
+Flow:
+  1. Login → get apikey
+  2. GET /api/brands → list all brands
+  3. GET /api/brands/{brand}/types/{type}/models → get models
+  4. GET /api/codesets/{setid}/functions → list functions
+  5. GET /api/codesets/{setid}/functions/{fn}/codes?output=direct&format=hex → get code
 
 Usage:
-  python 04_globalcache_api.py --brand "Samsung" --device-type TV
-  python 04_globalcache_api.py --fill-gaps  (queries for brands missing in master.csv)
-
-Get your free API key at: https://irdb.globalcache.com/home/developers
+  python 04_globalcache_api.py --email EMAIL --password PASSWORD
+  python 04_globalcache_api.py --email EMAIL --password PASSWORD --brand Samsung --device-type TV
+  python 04_globalcache_api.py --email EMAIL --password PASSWORD --fill-gaps
 
 Output: data/processed/globalcache.csv
 """
 
 import os
 import csv
+import time
 import argparse
 import requests
-import time
 
-API_BASE = "https://irdb.globalcache.com/api"
+API_BASE = "https://irdb.globalcache.com:8081"
 OUT_FILE = os.path.join(os.path.dirname(__file__), "../data/processed/globalcache.csv")
 MASTER_CSV = os.path.join(os.path.dirname(__file__), "../data/processed/master.csv")
 
 SCHEMA = ["source", "brand", "device_type", "model", "command", "protocol", "frequency_khz", "raw_data", "format"]
 
-DEVICE_TYPE_IDS = {
-    "TV": 1,
-    "AC": 4,
-    "STB": 7,
-    "FAN": 14,
-    "DVD": 2,
-    "AUDIO": 5,
-    "PROJECTOR": 8,
-}
+SESSION = requests.Session()
+SESSION.headers.update({"Content-Type": "application/json"})
+
+# Target brands for Indian smart home market
+TARGET_BRANDS = [
+    ("Samsung", "TV"), ("LG", "TV"), ("Sony", "TV"), ("Panasonic", "TV"),
+    ("Philips", "TV"), ("TCL", "TV"), ("Hisense", "TV"), ("Vu", "TV"),
+    ("Samsung", "AC"), ("LG", "AC"), ("Daikin", "AC"), ("Hitachi", "AC"),
+    ("Whirlpool", "AC"), ("Panasonic", "AC"), ("Voltas", "AC"),
+    ("Tata Sky", "STB"), ("Airtel", "STB"), ("DEN", "STB"),
+    ("Usha", "Fan"), ("Havells", "Fan"), ("Orient", "Fan"), ("Crompton", "Fan"),
+]
+
+# GlobalCaché special char escaping
+def gc_escape(s: str) -> str:
+    return (s
+        .replace("&", "xampx")
+        .replace("/", "xfslx")
+        .replace(">", "xgtx")
+        .replace("<", "xltx")
+        .replace(":", "xcolx")
+        .replace("?", "xquex")
+        .replace("%", "xmodx")
+        .replace("+", "xaddx"))
 
 
-def get_manufacturers(api_key: str, device_type_id: int) -> list[dict]:
-    url = f"{API_BASE}/manufacturer/{device_type_id}"
-    resp = requests.get(url, headers={"Gc-UniversalRemote-Token": api_key}, timeout=10)
+def login(email: str, password: str) -> str:
+    resp = SESSION.post(f"{API_BASE}/api/account/login",
+                        json={"Email": email, "Password": password}, timeout=15)
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    if data.get("Status") != "success":
+        raise Exception(f"Login failed: {data.get('Message')}")
+    apikey = data["Account"]["ApiKey"]
+    print(f"[GlobalCaché] Logged in. ApiKey: {apikey[:8]}...")
+    return apikey
 
 
-def get_models(api_key: str, manufacturer_id: int, device_type_id: int) -> list[dict]:
-    url = f"{API_BASE}/model/{manufacturer_id}/{device_type_id}"
-    resp = requests.get(url, headers={"Gc-UniversalRemote-Token": api_key}, timeout=10)
+def register(email: str, password: str) -> str:
+    resp = SESSION.post(f"{API_BASE}/api/account/register",
+                        json={"Email": email, "Password": password}, timeout=15)
     resp.raise_for_status()
-    return resp.json()
+    data = resp.json()
+    if data.get("Status") == "success":
+        print(f"[GlobalCaché] Account registered successfully.")
+        return data["Account"]["ApiKey"]
+    raise Exception(f"Registration failed: {data.get('Message')}")
 
 
-def get_ir_codes(api_key: str, manufacturer_id: int, device_type_id: int, model_id: int) -> list[dict]:
-    url = f"{API_BASE}/ircode/{manufacturer_id}/{device_type_id}/{model_id}"
-    resp = requests.get(url, headers={"Gc-UniversalRemote-Token": api_key}, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def pronto_to_frequency_khz(pronto_hex: str) -> str:
-    """Extract carrier frequency from Pronto Hex string."""
+def logout(apikey: str):
     try:
-        parts = pronto_hex.strip().split()
+        SESSION.post(f"{API_BASE}/api/account/logout?apikey={apikey}", timeout=10)
+        print("[GlobalCaché] Logged out.")
+    except Exception:
+        pass
+
+
+def get_brands(apikey: str) -> list[str]:
+    resp = SESSION.get(f"{API_BASE}/api/brands?apikey={apikey}", timeout=15)
+    resp.raise_for_status()
+    return [b["Name"] for b in resp.json()]
+
+
+def get_models(apikey: str, brand: str, device_type: str) -> list[dict]:
+    b = gc_escape(brand)
+    t = gc_escape(device_type)
+    resp = SESSION.get(f"{API_BASE}/api/brands/{b}/types/{t}/models?apikey={apikey}", timeout=15)
+    if resp.status_code == 404:
+        return []
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_functions(apikey: str, setid: str) -> list[dict]:
+    resp = SESSION.get(f"{API_BASE}/api/codesets/{setid}/functions?apikey={apikey}", timeout=15)
+    if resp.status_code == 404:
+        return []
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_code(apikey: str, setid: str, function: str) -> str | None:
+    fn = gc_escape(function)
+    url = f"{API_BASE}/api/codesets/{setid}/functions/{fn}/codes?apikey={apikey}&output=direct&format=hex"
+    resp = SESSION.get(url, timeout=15)
+    if resp.status_code in (404, 429):
+        return None
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("Status") != "success":
+        return None
+    code = data.get("Code1") or data.get("HexCode1") or ""
+    return code.strip() if code else None
+
+
+def pronto_frequency_khz(pronto: str) -> str:
+    try:
+        parts = pronto.strip().split()
         if len(parts) >= 2:
             freq_word = int(parts[1], 16)
             if freq_word > 0:
@@ -73,77 +139,54 @@ def pronto_to_frequency_khz(pronto_hex: str) -> str:
     return "38"
 
 
-def fetch_brand(api_key: str, brand: str, device_type: str, writer: csv.DictWriter) -> int:
-    device_type_id = DEVICE_TYPE_IDS.get(device_type.upper())
-    if not device_type_id:
-        print(f"  [WARN] Unknown device type: {device_type}")
-        return 0
-
-    print(f"[GlobalCaché] Fetching {brand} {device_type}...")
-    manufacturers = get_manufacturers(api_key, device_type_id)
-
-    # Find matching manufacturer
-    matched = [m for m in manufacturers if brand.lower() in m.get("manufacturer", "").lower()]
-    if not matched:
-        print(f"  [WARN] Brand '{brand}' not found in GlobalCaché for device type {device_type}")
+def fetch_brand_type(apikey: str, brand: str, device_type: str, writer: csv.DictWriter) -> int:
+    print(f"  [{brand} / {device_type}] Fetching models...")
+    models = get_models(apikey, brand, device_type)
+    if not models:
+        print(f"  [{brand} / {device_type}] No models found.")
         return 0
 
     count = 0
-    for mfr in matched:
-        mfr_id = mfr["manufacturerId"]
-        mfr_name = mfr["manufacturer"]
-
-        try:
-            models = get_models(api_key, mfr_id, device_type_id)
-        except Exception as e:
-            print(f"  [WARN] Could not fetch models for {mfr_name}: {e}")
+    for model in models:
+        setid = model.get("ID", "")
+        model_name = model.get("Name", "Unknown")
+        if not setid:
             continue
 
-        for model in models:
-            model_id = model["modelId"]
-            model_name = model.get("model", "Unknown")
+        functions = get_functions(apikey, setid)
+        time.sleep(0.1)
 
-            try:
-                codes = get_ir_codes(api_key, mfr_id, device_type_id, model_id)
-                time.sleep(0.1)  # Rate limit: be polite to the API
-            except Exception as e:
-                print(f"  [WARN] Could not fetch codes for {mfr_name}/{model_name}: {e}")
+        for fn_obj in functions:
+            function = fn_obj.get("Function", "")
+            if not function:
                 continue
 
-            for code in codes:
-                pronto = code.get("irCode", "")
-                command = code.get("keyName", "unknown")
-                if not pronto:
-                    continue
+            code = get_code(apikey, setid, function)
+            time.sleep(0.15)  # respect daily rate limit
 
-                writer.writerow({
-                    "source": "GlobalCaché",
-                    "brand": mfr_name,
-                    "device_type": device_type.upper(),
-                    "model": model_name,
-                    "command": command,
-                    "protocol": "PRONTO",
-                    "frequency_khz": pronto_to_frequency_khz(pronto),
-                    "raw_data": pronto,
-                    "format": "pronto_hex",
-                })
-                count += 1
+            if not code:
+                continue
 
+            writer.writerow({
+                "source": "GlobalCaché",
+                "brand": brand,
+                "device_type": device_type.upper(),
+                "model": model_name,
+                "command": function,
+                "protocol": "PRONTO",
+                "frequency_khz": pronto_frequency_khz(code),
+                "raw_data": code,
+                "format": "pronto_hex",
+            })
+            count += 1
+
+    print(f"  [{brand} / {device_type}] {count} codes fetched.")
     return count
 
 
 def get_missing_brands() -> list[tuple[str, str]]:
-    """Find brand+device_type combos missing from master.csv."""
-    target_brands = [
-        ("Samsung", "TV"), ("LG", "TV"), ("Sony", "TV"), ("Panasonic", "TV"),
-        ("Samsung", "AC"), ("LG", "AC"), ("Daikin", "AC"), ("Voltas", "AC"),
-        ("Blue Star", "AC"), ("Hitachi", "AC"), ("Whirlpool", "AC"),
-        ("Tata Sky", "STB"), ("Airtel", "STB"), ("DishTV", "STB"),
-        ("Usha", "FAN"), ("Havells", "FAN"), ("Orient", "FAN"),
-    ]
-
     if not os.path.exists(MASTER_CSV):
-        return target_brands
+        return TARGET_BRANDS
 
     existing = set()
     with open(MASTER_CSV, "r", encoding="utf-8") as f:
@@ -151,38 +194,47 @@ def get_missing_brands() -> list[tuple[str, str]]:
         for row in reader:
             existing.add((row["brand"].lower(), row["device_type"].upper()))
 
-    missing = [(b, d) for b, d in target_brands if (b.lower(), d.upper()) not in existing]
-    return missing
+    return [(b, d) for b, d in TARGET_BRANDS if (b.lower(), d.upper()) not in existing]
 
 
-def run(api_key: str, brand: str = None, device_type: str = None, fill_gaps: bool = False):
+def run(email: str, password: str, brand: str = None, device_type: str = None, fill_gaps: bool = False):
+    # Try login first, register if account not found
+    try:
+        apikey = login(email, password)
+    except Exception as e:
+        print(f"[GlobalCaché] Login failed ({e}). Attempting registration...")
+        apikey = register(email, password)
+
     os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
+    total = 0
 
-    with open(OUT_FILE, "w", newline="", encoding="utf-8") as out_f:
-        writer = csv.DictWriter(out_f, fieldnames=SCHEMA)
-        writer.writeheader()
+    try:
+        with open(OUT_FILE, "w", newline="", encoding="utf-8") as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=SCHEMA)
+            writer.writeheader()
 
-        total = 0
-        if fill_gaps:
-            missing = get_missing_brands()
-            print(f"[GlobalCaché] {len(missing)} brand/device combos to fill...")
-            for b, d in missing:
-                total += fetch_brand(api_key, b, d, writer)
-        elif brand and device_type:
-            total += fetch_brand(api_key, brand, device_type, writer)
-        else:
-            print("Provide --brand + --device-type or use --fill-gaps")
-            return
+            if fill_gaps:
+                missing = get_missing_brands()
+                print(f"[GlobalCaché] {len(missing)} brand/device combos to fill...")
+                for b, d in missing:
+                    total += fetch_brand_type(apikey, b, d, writer)
+            elif brand and device_type:
+                total += fetch_brand_type(apikey, brand, device_type, writer)
+            else:
+                print("Provide --brand + --device-type or use --fill-gaps")
+    finally:
+        logout(apikey)
 
-    print(f"[GlobalCaché] Done. {total} rows written to {OUT_FILE}")
+    print(f"\n[GlobalCaché] Done. {total} rows written to {OUT_FILE}")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fetch IR codes from GlobalCaché Control Tower")
-    parser.add_argument("--api-key", required=True, help="GlobalCaché API key")
-    parser.add_argument("--brand", help="Brand name (e.g. Samsung)")
-    parser.add_argument("--device-type", help="Device type: TV, AC, STB, FAN")
+    parser = argparse.ArgumentParser(description="Fetch IR codes from GlobalCaché IR Database")
+    parser.add_argument("--email", required=True, help="GlobalCaché account email")
+    parser.add_argument("--password", required=True, help="GlobalCaché account password")
+    parser.add_argument("--brand", help="Specific brand (e.g. Samsung)")
+    parser.add_argument("--device-type", help="Device type (e.g. TV, AC, Fan, STB)")
     parser.add_argument("--fill-gaps", action="store_true", help="Auto-fill missing brands from master.csv")
     args = parser.parse_args()
 
-    run(args.api_key, args.brand, args.device_type, args.fill_gaps)
+    run(args.email, args.password, args.brand, args.device_type, args.fill_gaps)
