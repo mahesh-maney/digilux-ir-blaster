@@ -174,3 +174,9 @@ A mobile-first IoT companion application designed for a Wi-Fi-bridged hardware h
    `Button Press` → `IR Protocol Encoder (NEC/RC5/SIRC/HVAC)` → `Generate Mark/Space µs Array + Hex` → `Update Virtual Appliance + Plot 38kHz Waveform` → *(If LAN Bridge active)* `POST /api/bridge/dispatch` → `Target ESP32/Tasmota Wi-Fi Hub` → `Render ACK / Error Toast`.
 2. **DALI-2 Bus Command Sequence**:
    `Dimmer/Kelvin Change` → `Convert % to 8-bit Arc (0–254) or Kelvin to Mirek` → `Build 16-bit Forward Frame (Address + Command)` → `Encode Manchester Bitstream` → `Update Luminaire State + Plot DALI Frame` → *(If LAN Bridge active)* `POST /api/bridge/dispatch`.
+
+<img width="884" height="615" alt="image" src="https://github.com/user-attachments/assets/e5efcdc6-b81e-4f7d-a630-003560157287" />
+
+
+
+
