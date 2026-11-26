@@ -175,7 +175,47 @@ A mobile-first IoT companion application designed for a Wi-Fi-bridged hardware h
 2. **DALI-2 Bus Command Sequence**:
    `Dimmer/Kelvin Change` → `Convert % to 8-bit Arc (0–254) or Kelvin to Mirek` → `Build 16-bit Forward Frame (Address + Command)` → `Encode Manchester Bitstream` → `Update Luminaire State + Plot DALI Frame` → *(If LAN Bridge active)* `POST /api/bridge/dispatch`.
 
-<img width="884" height="615" alt="image" src="https://github.com/user-attachments/assets/e5efcdc6-b81e-4f7d-a630-003560157287" />
+<img width="935" height="461" alt="image" src="https://github.com/user-attachments/assets/926a145a-78f5-4130-b08d-2511696027c9" />
+<img width="928" height="636" alt="image" src="https://github.com/user-attachments/assets/5570c379-7dcb-44ea-9ddf-f469ecb7f069" />
+<img width="892" height="180" alt="image" src="https://github.com/user-attachments/assets/f48b7075-5164-4d0e-a418-a4c0c668ac02" />
+<img width="897" height="467" alt="image" src="https://github.com/user-attachments/assets/ea36bbf0-9ab8-48a4-b3db-956ca57e5d37" />
+<img width="934" height="555" alt="image" src="https://github.com/user-attachments/assets/8b645ac6-ce76-42fd-888f-1a1e2a16a4ba" />
+<img width="917" height="501" alt="image" src="https://github.com/user-attachments/assets/2831d2a3-0d73-4468-a738-329679276a9d" />
+<img width="933" height="330" alt="image" src="https://github.com/user-attachments/assets/16db9841-d1b1-4cd9-bda7-405bb49b477e" />
+<img width="929" height="553" alt="image" src="https://github.com/user-attachments/assets/5fa8b387-a2a5-4523-b9eb-37bfa34d1c74" />
+<img width="913" height="684" alt="image" src="https://github.com/user-attachments/assets/ca41f2ff-5c4d-4ed7-b81a-9e92c470a87d" />
+<img width="917" height="608" alt="image" src="https://github.com/user-attachments/assets/a8873b40-0982-45c2-8c44-5009557f6244" />
+<img width="927" height="374" alt="image" src="https://github.com/user-attachments/assets/f2ebea7e-8d5f-47b0-b5e2-1d7fa78c96bf" />
+<img width="923" height="551" alt="image" src="https://github.com/user-attachments/assets/245a609f-475e-4982-81cf-1945c747346b" />
+<img width="918" height="559" alt="image" src="https://github.com/user-attachments/assets/111f0139-91b8-4597-8d51-0e3730bb0316" />
+<img width="926" height="586" alt="image" src="https://github.com/user-attachments/assets/ebf8e6ed-e3dd-4185-b010-3882bf5364bd" />
+<img width="921" height="683" alt="image" src="https://github.com/user-attachments/assets/cc970a71-b273-49c7-a9f9-3e55999885d1" />
+<img width="917" height="540" alt="image" src="https://github.com/user-attachments/assets/e7047560-8b86-4a32-80c5-ea6163b0084b" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
