@@ -7,9 +7,8 @@ A mobile-first IoT companion application designed for a Wi-Fi-bridged hardware h
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> Please confirm two key assumptions before we proceed to build:
-> 1. **"Dolly Protocol" → DALI / DALI-2 (IEC 62386):** We interpreted "dolly protocol" as **DALI** (Digital Addressable Lighting Interface), the industry-standard 2-wire architectural lighting bus supporting individual fixture addressing (`A0–A63`), groups (`G0–G15`), DT6 arc dimming, DT8 tunable white/color temperature, and native DALI scenes. If you instead meant a proprietary custom "Dolly" protocol or Dolby audio control, please request a revision and let us know.
-> 2. **Execution Mode (Simulator + Real LAN Bridge):** Out of the box, the app runs a deterministic **Virtual IoT Hub & Room Simulator** (generating real NEC/RC5/Sony/HVAC IR pulse trains and 16-bit Manchester-encoded DALI frames with live appliance state feedback) while also allowing you to configure a **real Wi-Fi Bridge REST endpoint** (e.g., ESP32, Tasmota, ESPHome, or Lunatone DALI-IoT gateway) to dispatch live JSON payloads over your network.
+**DALI** (Digital Addressable Lighting Interface), the industry-standard 2-wire architectural lighting bus supporting individual fixture addressing (`A0–A63`), groups (`G0–G15`), DT6 arc dimming, DT8 tunable white/color temperature, and native DALI scenes. 
+**Execution Mode (Simulator + Real LAN Bridge):** Out of the box, the app runs a deterministic **Virtual IoT Hub & Room Simulator** (generating real NEC/RC5/Sony/HVAC IR pulse trains and 16-bit Manchester-encoded DALI frames with live appliance state feedback) while also allowing you to configure a **real Wi-Fi Bridge REST endpoint** (e.g., ESP32, Tasmota, ESPHome, or Lunatone DALI-IoT gateway) to dispatch live JSON payloads over your network.
 
 - **Confirmed Hardware Scope**: Single Wi-Fi IoT hub equipped with an integrated 360° 38 kHz IR emitter/receiver and a wired DALI master bus interface.
 - **Recommended Default — Appliance Library**: Pre-loaded universal remote profiles for Smart TV (NEC/Samsung), Split AC HVAC (stateful multi-byte frames), Soundbar/AVR (Sony SIRC / RC5), and Ceiling Fan / Projector, plus custom IR Learning capture.
